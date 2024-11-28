@@ -1,4 +1,3 @@
-```yaml
 name: MyProject CI/CD
 
 on:
@@ -9,73 +8,52 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      BUILD_ENV: production
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set environment variable for Test stage
-      run: echo "NODE_ENV=test" >> $GITHUB_ENV
+    - name: Build
+      run: ./build.sh
 
-    - name: Print environment variable
-      run: echo "Environment will be : ${{ env.NODE_ENV }}"
+    - name: Test
+      run: ./test.sh
 
-    - name: Check Node.js version
-      run: node -v
-
-    - name: Prune npm packages
-      run: npm prune
-
-    - name: Install npm packages
-      run: npm install
-
-    - name: Run npm tests
-      run: npm test
-
-    - name: Build Docker image
-      run: ./dockerBuild.sh
-
-    - name: Deploy Docker image
-      run: |
-        echo 'Push to Repo'
-        ./dockerPushToRepo.sh
-        echo 'ssh to web server and tell it to pull new image'
-        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
-
-    - name: Cleanup
-      run: |
-        echo 'prune and cleanup'
-        npm prune
-        rm -rf node_modules
-
-    - name: Send success email
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build successful'
-        body: 'project build successful'
-        to: 'yyyyy@yyyy.com'
-        from: 'xxxx@yyyyy.com'
-        content_type: 'text/plain'
-
-  on_failure:
+  deploy:
     runs-on: ubuntu-latest
+    needs: build
+    env:
+      BUILD_ENV: production
 
     steps:
-    - name: Send failure email
-      if: failure()
-      uses: dawidd6/action-send-mail@v3
+    - name: Deploy
+      run: ./deploy.sh
+
+  post:
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+
+    steps:
+    - name: Archive Artifacts
+      if: always()
+      uses: actions/upload-artifact@v2
       with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build failed'
-        body: "project build error is here: ${{ github.event.workflow_run.html_url }}"
-        to: 'zzzz@yyyyy.com'
-        from: 'xxxx@yyyy.com'
-        content_type: 'text/plain'
-```
+        name: JAR Files
+        path: '**/target/*.jar'
+
+    - name: Publish Test Results
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: Test Reports
+        path: 'reports/**/*.xml'
+
+    - name: Notify Success
+      if: success()
+      run: echo 'Pipeline succeeded!'
+
+    - name: Notify Failure
+      if: failure()
+      run: echo 'Pipeline failed.'
