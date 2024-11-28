@@ -38,10 +38,10 @@ jobs:
         name: Test Reports
         path: 'reports/**/*.xml'
 
-    - name: Success Message
+    - name: Pipeline succeeded
       if: success()
       run: echo 'Pipeline succeeded!'
 
-    - name: Failure Message
+    - name: Pipeline failed
       if: failure()
       run: echo 'Pipeline failed.'
