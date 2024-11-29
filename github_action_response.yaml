@@ -10,48 +10,93 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
+      DOCKER_REGISTRY: my-docker-registry.com
+      APP_NAME: my-java-app
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Initialize
+      run: |
+        echo "Initializing pipeline for ${{ env.APP_NAME }} in ${{ env.BUILD_ENV }} environment"
+        java -version
+
+    - name: Static Analysis
+      run: |
+        echo 'Running Code Analysis...'
+        ./gradlew checkstyleMain
+        ./gradlew lint
+
     - name: Build
-      run: ./build.sh
+      run: |
+        echo 'Building Application...'
+        ./gradlew build
 
-    - name: Test
-      run: ./test.sh
+    - name: Unit Tests
+      run: |
+        echo 'Running Unit Tests...'
+        ./gradlew test
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      BUILD_ENV: production
+    - name: Code Coverage
+      run: |
+        echo 'Generating Code Coverage Report...'
+        ./gradlew jacocoTestReport
 
-    steps:
-    - name: Deploy
-      run: ./deploy.sh
+    - name: Publish Code Coverage Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: Code Coverage Report
+        path: build/reports/jacoco/index.html
+
+    - name: Docker Build
+      run: |
+        echo 'Building Docker Image...'
+        docker build -t ${{ env.DOCKER_REGISTRY }}/${{ env.APP_NAME }}:${{ env.BUILD_ENV }} .
+
+    - name: Push Docker Image
+      run: |
+        echo 'Pushing Docker Image...'
+        docker push ${{ env.DOCKER_REGISTRY }}/${{ env.APP_NAME }}:${{ env.BUILD_ENV }}
+
+    - name: Deploy to Kubernetes
+      run: |
+        echo 'Deploying Application to Kubernetes...'
+        kubectl apply -f k8s/deployment.yaml
+
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Build Artifacts
+        path: '**/build/libs/*.jar'
 
   post:
-    runs-on: ubuntu-latest
-    needs: [build, deploy]
-    if: always()
-    steps:
-    - name: Archive Artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: build-artifacts
-        path: '**/target/*.jar'
-
-    - name: Publish Test Results
-      uses: actions/upload-artifact@v2
-      with:
-        name: test-results
-        path: 'reports/**/*.xml'
-
-    - name: Notify Success
-      if: success()
-      run: echo 'Pipeline succeeded!'
-
-    - name: Notify Failure
-      if: failure()
-      run: echo 'Pipeline failed.'
+    always:
+      - name: Notify Always
+        run: echo 'Archiving build artifacts...'
+    success:
+      - name: Notify Success
+        run: echo 'Pipeline succeeded!'
+      - name: Send Success Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Build Success: ${{ env.APP_NAME }}"
+          body: "The pipeline for ${{ env.APP_NAME }} succeeded. Build available at ${{ github.run_id }}"
+          to: team@example.com
+    failure:
+      - name: Notify Failure
+        run: echo 'Pipeline failed.'
+      - name: Send Failure Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Build Failed: ${{ env.APP_NAME }}"
+          body: "The pipeline for ${{ env.APP_NAME }} failed. Check logs at ${{ github.run_id }}"
+          to: team@example.com
