@@ -46,7 +46,7 @@ jobs:
     - name: Publish Code Coverage Report
       uses: actions/upload-artifact@v3
       with:
-        name: Code Coverage Report
+        name: code-coverage-report
         path: build/reports/jacoco/index.html
 
     - name: Docker Build
@@ -65,38 +65,20 @@ jobs:
         kubectl apply -f k8s/deployment.yaml
 
     - name: Archive build artifacts
+      if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: Build Artifacts
+        name: build-artifacts
         path: '**/build/libs/*.jar'
 
-  post:
-    always:
-      - name: Notify Always
-        run: echo 'Archiving build artifacts...'
-    success:
-      - name: Notify Success
-        run: echo 'Pipeline succeeded!'
-      - name: Send Success Email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.example.com
-          server_port: 587
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Build Success: ${{ env.APP_NAME }}"
-          body: "The pipeline for ${{ env.APP_NAME }} succeeded. Build available at ${{ github.run_id }}"
-          to: team@example.com
-    failure:
-      - name: Notify Failure
-        run: echo 'Pipeline failed.'
-      - name: Send Failure Email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.example.com
-          server_port: 587
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Build Failed: ${{ env.APP_NAME }}"
-          body: "The pipeline for ${{ env.APP_NAME }} failed. Check logs at ${{ github.run_id }}"
-          to: team@example.com
+    - name: Notify Success
+      if: success()
+      run: |
+        echo 'Pipeline succeeded!'
+        echo "The pipeline for ${{ env.APP_NAME }} succeeded. Build available at ${{ github.run_id }}" | mail -s "Build Success: ${{ env.APP_NAME }}" team@example.com
+
+    - name: Notify Failure
+      if: failure()
+      run: |
+        echo 'Pipeline failed.'
+        echo "The pipeline for ${{ env.APP_NAME }} failed. Check logs at ${{ github.run_id }}" | mail -s "Build Failed: ${{ env.APP_NAME }}" team@example.com
