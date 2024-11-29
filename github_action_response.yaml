@@ -10,75 +10,48 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
-      DOCKER_REGISTRY: my-docker-registry.com
-      APP_NAME: my-java-app
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Initialize
-      run: |
-        echo "Initializing pipeline for ${{ env.APP_NAME }} in ${{ env.BUILD_ENV }} environment"
-        java -version
-
-    - name: Static Analysis
-      run: |
-        echo 'Running Code Analysis...'
-        ./gradlew checkstyleMain
-        ./gradlew lint
-
     - name: Build
-      run: |
-        echo 'Building Application...'
-        ./gradlew build
+      run: ./build.sh
 
-    - name: Unit Tests
-      run: |
-        echo 'Running Unit Tests...'
-        ./gradlew test
+    - name: Test
+      run: ./test.sh
 
-    - name: Code Coverage
-      run: |
-        echo 'Generating Code Coverage Report...'
-        ./gradlew jacocoTestReport
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      BUILD_ENV: production
 
-    - name: Publish Code Coverage Report
-      uses: actions/upload-artifact@v3
-      with:
-        name: code-coverage-report
-        path: build/reports/jacoco/index.html
+    steps:
+    - name: Deploy
+      run: ./deploy.sh
 
-    - name: Docker Build
-      run: |
-        echo 'Building Docker Image...'
-        docker build -t ${{ env.DOCKER_REGISTRY }}/${{ env.APP_NAME }}:${{ env.BUILD_ENV }} .
-
-    - name: Push Docker Image
-      run: |
-        echo 'Pushing Docker Image...'
-        docker push ${{ env.DOCKER_REGISTRY }}/${{ env.APP_NAME }}:${{ env.BUILD_ENV }}
-
-    - name: Deploy to Kubernetes
-      run: |
-        echo 'Deploying Application to Kubernetes...'
-        kubectl apply -f k8s/deployment.yaml
-
-    - name: Archive build artifacts
-      if: always()
-      uses: actions/upload-artifact@v3
+  post:
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: always()
+    steps:
+    - name: Archive Artifacts
+      uses: actions/upload-artifact@v2
       with:
         name: build-artifacts
-        path: '**/build/libs/*.jar'
+        path: '**/target/*.jar'
+
+    - name: Publish Test Results
+      uses: actions/upload-artifact@v2
+      with:
+        name: test-results
+        path: 'reports/**/*.xml'
 
     - name: Notify Success
       if: success()
-      run: |
-        echo 'Pipeline succeeded!'
-        echo "The pipeline for ${{ env.APP_NAME }} succeeded. Build available at ${{ github.run_id }}" | mail -s "Build Success: ${{ env.APP_NAME }}" team@example.com
+      run: echo 'Pipeline succeeded!'
 
     - name: Notify Failure
       if: failure()
-      run: |
-        echo 'Pipeline failed.'
-        echo "The pipeline for ${{ env.APP_NAME }} failed. Check logs at ${{ github.run_id }}" | mail -s "Build Failed: ${{ env.APP_NAME }}" team@example.com
+      run: echo 'Pipeline failed.'
