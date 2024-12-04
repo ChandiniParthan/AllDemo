@@ -5,80 +5,43 @@ on:
     branches:
       - main
 
-env:
-  BUILD_ENV: production
-  DOCKER_REGISTRY: my-docker-registry.com
-  APP_NAME: my-java-app
-
 jobs:
-  build:
+  pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    env:
+      BUILD_ENV: production
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Initialize
-      run: |
-        echo "Initializing pipeline for ${APP_NAME} in ${BUILD_ENV} environment"
-        java -version
+    - name: Build
+      run: ./build.sh
 
-    - name: Static Analysis - Checkstyle
-      run: ./gradlew checkstyleMain
+    - name: Test
+      run: ./test.sh
 
-    - name: Static Analysis - Lint
-      run: ./gradlew lint
+    - name: Deploy
+      run: ./deploy.sh
 
-    - name: Build Application
-      run: ./gradlew build
-
-    - name: Run Unit Tests
-      run: ./gradlew test
-
-    - name: Generate Code Coverage Report
-      run: ./gradlew jacocoTestReport
-
-    - name: Publish Code Coverage Report
+    - name: Archive Artifacts
+      if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: Code Coverage Report
-        path: build/reports/jacoco/index.html
+        name: JAR Files
+        path: '**/target/*.jar'
 
-    - name: Build Docker Image
-      run: docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV} .
-
-    - name: Push Docker Image
-      run: docker push ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV}
-
-    - name: Deploy to Kubernetes
-      run: kubectl apply -f k8s/deployment.yaml
-
-    - name: Archive build artifacts
+    - name: Publish Test Results
+      if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: Build Artifacts
-        path: '**/build/libs/*.jar'
+        name: Test Reports
+        path: 'reports/**/*.xml'
 
-  post:
-    always:
-      steps:
-      - name: Archive build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: Build Artifacts
-          path: '**/build/libs/*.jar'
+    - name: Success Notification
+      if: success()
+      run: echo 'Pipeline succeeded!'
 
-    success:
-      steps:
-      - name: Notify Success
-        run: |
-          echo 'Pipeline succeeded!'
-          echo "The pipeline for ${APP_NAME} succeeded. Build available at ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | mail -s "Build Success: ${APP_NAME}" team@example.com
-
-    failure:
-      steps:
-      - name: Notify Failure
-        run: |
-          echo 'Pipeline failed.'
-          echo "The pipeline for ${APP_NAME} failed. Check logs at ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | mail -s "Build Failed: ${APP_NAME}" team@example.com
+    - name: Failure Notification
+      if: failure()
+      run: echo 'Pipeline failed.'
