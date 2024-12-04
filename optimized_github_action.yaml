@@ -1,0 +1,64 @@
+name: MyProject CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_ENV: production
+
+    steps:
+    # Optimization: Checkout code is necessary to fetch the repository content
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Optimization: Cache dependencies to speed up build times
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+
+    # Optimization: Build step to compile the project
+    - name: Build
+      run: ./build.sh
+
+    # Optimization: Test step to run the test suite
+    - name: Test
+      run: ./test.sh
+
+    # Optimization: Deploy step to deploy the application
+    - name: Deploy
+      run: ./deploy.sh
+
+    # Optimization: Archive artifacts for later use, always run this step
+    - name: Archive Artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: JAR Files
+        path: '**/target/*.jar'
+
+    # Optimization: Publish test results for visibility, always run this step
+    - name: Publish Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Reports
+        path: 'reports/**/*.xml'
+
+    # Optimization: Notify on success
+    - name: Success Notification
+      if: success()
+      run: echo 'Pipeline succeeded!'
+
+    # Optimization: Notify on failure
+    - name: Failure Notification
+      if: failure()
+      run: echo 'Pipeline failed.'
