@@ -10,98 +10,48 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
-      DOCKER_REGISTRY: my-docker-registry.com
-      APP_NAME: my-java-app
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Initialize
-      run: |
-        echo "Initializing pipeline for ${APP_NAME} in ${BUILD_ENV} environment"
-        java -version
-
-    - name: Static Analysis
-      run: |
-        echo 'Running Code Analysis...'
-        ./gradlew checkstyleMain
-        ./gradlew lint
-
     - name: Build
-      run: |
-        echo 'Building Application...'
-        ./gradlew build
+      run: ./build.sh
 
-    - name: Unit Tests
-      run: |
-        echo 'Running Unit Tests...'
-        ./gradlew test
+    - name: Test
+      run: ./test.sh
 
-    - name: Code Coverage
-      run: |
-        echo 'Generating Code Coverage Report...'
-        ./gradlew jacocoTestReport
-
-    - name: Publish Code Coverage Report
-      uses: actions/upload-artifact@v3
-      with:
-        name: code-coverage-report
-        path: build/reports/jacoco/index.html
-
-    - name: Docker Build
-      run: |
-        echo 'Building Docker Image...'
-        docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV} .
-
-    - name: Push Docker Image
-      run: |
-        echo 'Pushing Docker Image...'
-        docker push ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV}
-
-    - name: Deploy to Kubernetes
-      run: |
-        echo 'Deploying Application to Kubernetes...'
-        kubectl apply -f k8s/deployment.yaml
-
-    - name: Archive build artifacts
+    - name: Archive Artifacts
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: build-artifacts
-        path: '**/build/libs/*.jar'
+        path: '**/target/*.jar'
 
-  post:
-    always:
-      steps:
-      - name: Notify team
-        run: echo 'Archiving build artifacts...'
+    - name: Publish Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: 'reports/**/*.xml'
 
-    success:
-      steps:
-      - name: Notify success
-        run: echo 'Pipeline succeeded!'
-      - name: Send success email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.example.com
-          server_port: 587
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Build Success: ${APP_NAME}"
-          body: "The pipeline for ${APP_NAME} succeeded. Build available at ${{ github.run_id }}"
-          to: team@example.com
+    - name: Success Message
+      if: success()
+      run: echo 'Pipeline succeeded!'
 
-    failure:
-      steps:
-      - name: Notify failure
-        run: echo 'Pipeline failed.'
-      - name: Send failure email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.example.com
-          server_port: 587
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Build Failed: ${APP_NAME}"
-          body: "The pipeline for ${APP_NAME} failed. Check logs at ${{ github.run_id }}"
-          to: team@example.com
+    - name: Failure Message
+      if: failure()
+      run: echo 'Pipeline failed.'
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      BUILD_ENV: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Deploy
+      run: ./deploy.sh
