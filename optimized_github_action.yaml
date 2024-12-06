@@ -12,7 +12,7 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code using the latest stable version of the action
+    # Optimization: Checkout code is necessary to fetch the repository
     - name: Checkout code
       uses: actions/checkout@v3
 
@@ -25,16 +25,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-maven-
 
-    # Optimization: Set up Java using the latest stable version of the action
+    # Optimization: Set up Java environment
     - name: Set up Java
       uses: actions/setup-java@v3
       with:
-        distribution: 'adopt'
         java-version: '11'
 
-    # Optimization: Combine build and test steps to reduce the number of job steps
-    - name: Build and Test with Maven
-      run: mvn clean install && mvn test
+    # Optimization: Build the project using Maven
+    - name: Build with Maven
+      run: mvn clean install
+
+    # Optimization: Run tests using Maven
+    - name: Test with Maven
+      run: mvn test
 
   deploy:
     runs-on: ubuntu-latest
@@ -43,7 +46,7 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Deploy to production using a single step
+    # Optimization: Deploy to production environment
     - name: Deploy to Production
       run: ./deploy.sh
 
@@ -52,15 +55,15 @@ jobs:
     needs: [build, deploy]
 
     steps:
-    # Optimization: Archive artifacts only if the build was successful
+    # Optimization: Archive artifacts for future reference
     - name: Archive Artifacts
-      if: success()
+      if: always()
       uses: actions/upload-artifact@v2
       with:
         name: JAR Files
         path: '**/target/*.jar'
 
-    # Optimization: Publish test results only if the tests were run
+    # Optimization: Publish test results for analysis
     - name: Publish Test Results
       if: always()
       uses: actions/upload-artifact@v2
@@ -68,6 +71,12 @@ jobs:
         name: Test Reports
         path: 'reports/**/*.xml'
 
-    # Optimization: Notify success or failure using a single step with conditional output
-    - name: Notify Result
-      run: echo "Pipeline ${{ job.status }}!"
+    # Optimization: Notify success if the pipeline succeeds
+    - name: Notify Success
+      if: success()
+      run: echo 'Pipeline succeeded!'
+
+    # Optimization: Notify failure if the pipeline fails
+    - name: Notify Failure
+      if: failure()
+      run: echo 'Pipeline failed.'
