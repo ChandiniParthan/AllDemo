@@ -5,79 +5,103 @@ on:
     branches:
       - main
 
-env:
-  REGISTRY: docker.io/myorg
-
 jobs:
-  checkout:
+  build:
     runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    - name: Set environment variables
-      run: echo "IMAGE_TAG=${{ github.run_number }}" >> $GITHUB_ENV
+    env:
+      BUILD_ENV: production
+      DOCKER_REGISTRY: my-docker-registry.com
+      APP_NAME: my-java-app
 
-  build_and_test:
-    runs-on: ubuntu-latest
-    needs: checkout
-    strategy:
-      matrix:
-        service: [serviceA, serviceB]
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    - name: Set up Java
-      uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-    - name: Build ${{ matrix.service }}
-      run: ./gradlew build
-      working-directory: ${{ matrix.service }}
-    - name: Run Tests
-      if: matrix.service == 'serviceA'
-      run: ./gradlew test
 
-  dockerize:
-    runs-on: ubuntu-latest
-    needs: build_and_test
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    - name: Build Docker Images
-      run: docker-compose build
-
-  push_docker_images:
-    runs-on: ubuntu-latest
-    needs: dockerize
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    - name: Log in to Docker Hub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-    - name: Tag and Push Docker Images
+    - name: Initialize
       run: |
-        docker tag service-a ${{ env.REGISTRY }}/service-a:${{ env.IMAGE_TAG }}
-        docker push ${{ env.REGISTRY }}/service-a:${{ env.IMAGE_TAG }}
-        docker tag service-b ${{ env.REGISTRY }}/service-b:${{ env.IMAGE_TAG }}
-        docker push ${{ env.REGISTRY }}/service-b:${{ env.IMAGE_TAG }}
+        echo "Initializing pipeline for ${APP_NAME} in ${BUILD_ENV} environment"
+        java -version
 
-  deploy_to_staging:
-    runs-on: ubuntu-latest
-    needs: push_docker_images
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    - name: Deploy to Staging Environment
-      run: kubectl apply -f staging/deployment.yaml
+    - name: Static Analysis
+      run: |
+        echo 'Running Code Analysis...'
+        ./gradlew checkstyleMain
+        ./gradlew lint
+
+    - name: Build
+      run: |
+        echo 'Building Application...'
+        ./gradlew build
+
+    - name: Unit Tests
+      run: |
+        echo 'Running Unit Tests...'
+        ./gradlew test
+
+    - name: Code Coverage
+      run: |
+        echo 'Generating Code Coverage Report...'
+        ./gradlew jacocoTestReport
+
+    - name: Publish Code Coverage Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-coverage-report
+        path: build/reports/jacoco/index.html
+
+    - name: Docker Build
+      run: |
+        echo 'Building Docker Image...'
+        docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV} .
+
+    - name: Push Docker Image
+      run: |
+        echo 'Pushing Docker Image...'
+        docker push ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV}
+
+    - name: Deploy to Kubernetes
+      run: |
+        echo 'Deploying Application to Kubernetes...'
+        kubectl apply -f k8s/deployment.yaml
+
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: '**/build/libs/*.jar'
 
   post:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Always run
-      run: echo 'Pipeline finished.'
-    - name: On success
-      if: success()
-      run: echo 'Pipeline succeeded!'
-    - name: On failure
-      if: failure()
-      run: echo 'Pipeline failed!'
+    always:
+      steps:
+      - name: Notify team
+        run: echo 'Archiving build artifacts...'
+
+    success:
+      steps:
+      - name: Notify success
+        run: echo 'Pipeline succeeded!'
+      - name: Send success email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Build Success: ${APP_NAME}"
+          body: "The pipeline for ${APP_NAME} succeeded. Build available at ${{ github.run_id }}"
+          to: team@example.com
+
+    failure:
+      steps:
+      - name: Notify failure
+        run: echo 'Pipeline failed.'
+      - name: Send failure email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Build Failed: ${APP_NAME}"
+          body: "The pipeline for ${APP_NAME} failed. Check logs at ${{ github.run_id }}"
+          to: team@example.com
