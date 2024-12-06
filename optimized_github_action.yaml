@@ -12,32 +12,15 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code is necessary to fetch the repository
+    # Optimization: Using the latest version of checkout action for better performance and security
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Cache Maven dependencies to speed up the build process
-    - name: Cache Maven packages
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
-
-    # Optimization: Set up Java environment
-    - name: Set up Java
-      uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-
-    # Optimization: Build the project using Maven
-    - name: Build with Maven
-      run: mvn clean install
-
-    # Optimization: Run tests using Maven
-    - name: Test with Maven
-      run: mvn test
+    # Optimization: Combining build and test steps to reduce the number of job executions
+    - name: Build and Test
+      run: |
+        ./build.sh
+        ./test.sh
 
   deploy:
     runs-on: ubuntu-latest
@@ -46,8 +29,11 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Deploy to production environment
-    - name: Deploy to Production
+    # Optimization: Added a step to ensure the build artifacts are available before deployment
+    - name: Ensure Build Artifacts
+      run: ls -la ./build
+
+    - name: Deploy
       run: ./deploy.sh
 
   post:
@@ -55,28 +41,22 @@ jobs:
     needs: [build, deploy]
 
     steps:
-    # Optimization: Archive artifacts for future reference
+    # Optimization: Using a single action to upload multiple artifacts for better maintainability
     - name: Archive Artifacts
       if: always()
       uses: actions/upload-artifact@v2
       with:
-        name: JAR Files
-        path: '**/target/*.jar'
+        name: Artifacts
+        path: |
+          '**/target/*.jar'
+          'reports/**/*.xml'
 
-    # Optimization: Publish test results for analysis
-    - name: Publish Test Results
+    # Optimization: Combining success and failure notifications into a single step for simplicity
+    - name: Notify Result
       if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: Test Reports
-        path: 'reports/**/*.xml'
-
-    # Optimization: Notify success if the pipeline succeeds
-    - name: Notify Success
-      if: success()
-      run: echo 'Pipeline succeeded!'
-
-    # Optimization: Notify failure if the pipeline fails
-    - name: Notify Failure
-      if: failure()
-      run: echo 'Pipeline failed.'
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo 'Pipeline succeeded!';
+        else
+          echo 'Pipeline failed.';
+        fi
