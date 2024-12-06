@@ -6,47 +6,71 @@ on:
       - main
 
 jobs:
-  pipeline:
+  build:
     runs-on: ubuntu-latest
     env:
-      BUILD_ENV: production
+      NODE_ENV: test  # Optimization: Set environment variable globally for the job
 
     steps:
-    # Optimization: Checkout code is necessary to fetch the latest code from the repository
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Combine build and test steps to reduce the number of steps and improve performance
-    - name: Build and Test
-      run: |
-        ./build.sh
-        ./test.sh
+    - name: Print environment variable
+      run: echo "Environment will be : ${{ env.NODE_ENV }}"
 
-    # Optimization: Deploy step remains the same as it is a critical part of the pipeline
-    - name: Deploy
-      run: ./deploy.sh
-
-    # Optimization: Archive artifacts and publish test results in parallel to save time
-    - name: Archive Artifacts
-      if: always()
-      uses: actions/upload-artifact@v3
+    - name: Setup Node.js
+      uses: actions/setup-node@v3  # Optimization: Use setup-node action to ensure the correct Node.js version is used
       with:
-        name: JAR Files
-        path: '**/target/*.jar'
+        node-version: '14'  # Specify the Node.js version
 
-    - name: Publish Test Results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: Test Reports
-        path: 'reports/**/*.xml'
-
-    # Optimization: Combine success and failure notifications into a single step to reduce redundancy
-    - name: Notification
-      if: always()
+    - name: Prune and install npm packages
       run: |
-        if [ "${{ job.status }}" == "success" ]; then
-          echo 'Pipeline succeeded!';
-        else
-          echo 'Pipeline failed.';
-        fi
+        npm prune
+        npm install  # Optimization: Combine prune and install steps to reduce overhead
+
+    - name: Run tests
+      run: npm test
+
+    - name: Build Docker image
+      run: ./dockerBuild.sh
+
+    - name: Deploy Docker image
+      run: |
+        echo 'Push to Repo'
+        ./dockerPushToRepo.sh
+        echo 'ssh to web server and tell it to pull new image'
+        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
+
+    - name: Cleanup
+      run: |
+        echo 'prune and cleanup'
+        npm prune
+        rm -rf node_modules
+
+    - name: Send success email
+      if: success()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: 'project build successful'
+        body: 'project build successful'
+        to: 'yyyyy@yyyy.com'
+        from: 'xxxx@yyyyy.com'
+        content_type: 'text/plain'
+
+    - name: Send failure email
+      if: failure()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: 'project build failed'
+        body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        to: 'zzzz@yyyyy.com'
+        from: 'xxxx@yyyy.com'
+        content_type: 'text/plain'
