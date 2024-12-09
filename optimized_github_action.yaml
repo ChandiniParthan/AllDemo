@@ -5,58 +5,92 @@ on:
     branches:
       - main
 
+env:
+  BUILD_ENV: production
+  DOCKER_REGISTRY: my-docker-registry.com
+  APP_NAME: my-java-app
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      BUILD_ENV: production
+    timeout-minutes: 60
 
     steps:
-    # Optimization: Using the latest version of checkout action for better performance and security
+    # Optimization: Use actions/checkout@v3 to ensure the latest version of the action is used
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Combining build and test steps to reduce the number of job executions
+    # Optimization: Combine initialization steps to reduce the number of shell invocations
+    - name: Initialize
+      run: |
+        echo "Initializing pipeline for ${APP_NAME} in ${BUILD_ENV} environment"
+        java -version
+
+    # Optimization: Combine static analysis steps to reduce the number of shell invocations
+    - name: Static Analysis
+      run: |
+        echo 'Running Code Analysis...'
+        ./gradlew checkstyleMain lint
+
+    # Optimization: Combine build and test steps to reduce the number of shell invocations
     - name: Build and Test
       run: |
-        ./build.sh
-        ./test.sh
+        echo 'Building and Testing Application...'
+        ./gradlew build test
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      BUILD_ENV: production
+    # Optimization: Combine code coverage steps to reduce the number of shell invocations
+    - name: Code Coverage
+      run: |
+        echo 'Generating Code Coverage Report...'
+        ./gradlew jacocoTestReport
 
-    steps:
-    # Optimization: Added a step to ensure the build artifacts are available before deployment
-    - name: Ensure Build Artifacts
-      run: ls -la ./build
+    # Optimization: Use a single action to upload multiple artifacts
+    - name: Publish Reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: reports
+        path: |
+          build/reports/jacoco/index.html
+          '**/build/libs/*.jar'
 
-    - name: Deploy
-      run: ./deploy.sh
+    # Optimization: Combine Docker build and push steps to reduce the number of shell invocations
+    - name: Docker Build and Push
+      run: |
+        echo 'Building and Pushing Docker Image...'
+        docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV} .
+        docker push ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV}
+
+    # Optimization: Add a step to configure kubectl to avoid repeating configuration in each run
+    - name: Configure kubectl
+      run: |
+        echo 'Configuring kubectl...'
+        # Add kubectl configuration commands here
+
+    - name: Deploy to Kubernetes
+      run: |
+        echo 'Deploying Application to Kubernetes...'
+        kubectl apply -f k8s/deployment.yaml
 
   post:
-    runs-on: ubuntu-latest
-    needs: [build, deploy]
+    always:
+      steps:
+      # Optimization: Use a single action to upload multiple artifacts
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: '**/build/libs/*.jar'
 
-    steps:
-    # Optimization: Using a single action to upload multiple artifacts for better maintainability
-    - name: Archive Artifacts
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: Artifacts
-        path: |
-          '**/target/*.jar'
-          'reports/**/*.xml'
+    success:
+      steps:
+      - name: Notify Success
+        run: |
+          echo 'Pipeline succeeded!'
+          echo "The pipeline for ${APP_NAME} succeeded. Build available at ${GITHUB_RUN_URL}" | mail -s "Build Success: ${APP_NAME}" team@example.com
 
-    # Optimization: Combining success and failure notifications into a single step for simplicity
-    - name: Notify Result
-      if: always()
-      run: |
-        if [ "${{ job.status }}" == "success" ]; then
-          echo 'Pipeline succeeded!';
-        else
-          echo 'Pipeline failed.';
-        fi
+    failure:
+      steps:
+      - name: Notify Failure
+        run: |
+          echo 'Pipeline failed.'
+          echo "The pipeline for ${APP_NAME} failed. Check logs at ${GITHUB_RUN_URL}" | mail -s "Build Failed: ${APP_NAME}" team@example.com
