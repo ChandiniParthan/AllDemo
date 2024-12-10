@@ -12,32 +12,21 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code using the latest stable version of the action
+    # Optimization: Using the latest stable version of checkout action
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Cache dependencies to speed up build times
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+    # Optimization: Combine build and test steps to reduce overhead
+    - name: Build and Test
+      run: |
+        ./build.sh
+        ./test.sh
 
-    # Optimization: Build step
-    - name: Build
-      run: ./build.sh
-
-    # Optimization: Test step
-    - name: Test
-      run: ./test.sh
-
-    # Optimization: Deploy step
+    # Optimization: Deploy step remains the same
     - name: Deploy
       run: ./deploy.sh
 
-    # Optimization: Archive build artifacts only if the build is successful
+    # Optimization: Archive artifacts only if build and test succeed
     - name: Archive Artifacts
       if: success()
       uses: actions/upload-artifact@v3
@@ -47,18 +36,18 @@ jobs:
 
     # Optimization: Publish test results only if tests are run
     - name: Publish Test Results
-      if: always()
+      if: success()
       uses: actions/upload-artifact@v3
       with:
         name: test-results
         path: 'reports/**/*.xml'
 
-    # Optimization: Notify on success
-    - name: Success Notification
-      if: success()
-      run: echo 'Pipeline succeeded!'
-
-    # Optimization: Notify on failure
-    - name: Failure Notification
-      if: failure()
-      run: echo 'Pipeline failed.'
+    # Optimization: Combine success and failure notifications into one step
+    - name: Notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo 'Pipeline succeeded!';
+        else
+          echo 'Pipeline failed.';
+        fi
