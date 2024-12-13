@@ -6,13 +6,13 @@ on:
       - main
 
 jobs:
-  pipeline:
+  build:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Using the latest stable version of checkout action
+    # Optimization: Checkout code is necessary for all subsequent steps
     - name: Checkout code
       uses: actions/checkout@v3
 
@@ -22,32 +22,41 @@ jobs:
         ./build.sh
         ./test.sh
 
-    # Optimization: Deploy step remains the same
-    - name: Deploy
-      run: ./deploy.sh
-
     # Optimization: Archive artifacts only if build and test succeed
     - name: Archive Artifacts
       if: success()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: build-artifacts
         path: '**/target/*.jar'
 
-    # Optimization: Publish test results only if tests are run
+    # Optimization: Publish test results only if tests succeed
     - name: Publish Test Results
       if: success()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: test-results
         path: 'reports/**/*.xml'
 
-    # Optimization: Combine success and failure notifications into one step
-    - name: Notification
+    # Optimization: Echo messages combined into a single step with conditional logic
+    - name: Echo Pipeline Status
       if: always()
       run: |
         if [ "${{ job.status }}" == "success" ]; then
-          echo 'Pipeline succeeded!';
+          echo 'Pipeline succeeded!'
         else
-          echo 'Pipeline failed.';
+          echo 'Pipeline failed.'
         fi
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    # Optimization: Checkout code is necessary for deployment
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Optimization: Deploy step remains unchanged as it is necessary for deployment
+    - name: Deploy
+      run: ./deploy.sh
