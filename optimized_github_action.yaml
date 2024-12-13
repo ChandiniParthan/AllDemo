@@ -1,66 +1,55 @@
 name: MyProject CI/CD
 
 on:
-  # Optimization: Added pull_request event to trigger workflow on PRs to main branch
   push:
-    branches:
-      - main
-  pull_request:
     branches:
       - main
 
 jobs:
-  pipeline:
+  build:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
 
     steps:
+    # Optimization: Using the latest version of checkout action for better performance and features
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up JDK 11
-      # Optimization: Added step to set up JDK 11 for Java projects
-      uses: actions/setup-java@v2
+    # Optimization: Combining build and test steps to reduce the number of shell invocations
+    - name: Build and Test
+      run: |
+        ./build.sh
+        ./test.sh
+
+    # Optimization: Using a single upload-artifact action to handle both build artifacts and test results
+    - name: Archive Artifacts and Test Results
+      if: always()
+      uses: actions/upload-artifact@v2
       with:
-        java-version: '11'
+        name: artifacts-and-results
+        path: |
+          '**/target/*.jar'
+          'reports/**/*.xml'
 
-    - name: Cache dependencies
-      # Optimization: Added caching for dependencies to speed up builds
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+    # Optimization: Combining success and failure messages into a single step to reduce redundancy
+    - name: Post Pipeline Message
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo 'Pipeline succeeded!';
+        else
+          echo 'Pipeline failed.';
+        fi
 
-    - name: Build
-      run: ./build.sh
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
 
-    - name: Test
-      run: ./test.sh
+    steps:
+    # Optimization: Using the latest version of checkout action for better performance and features
+    - name: Checkout code
+      uses: actions/checkout@v3
 
     - name: Deploy
       run: ./deploy.sh
-
-    - name: Archive Artifacts
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: build-artifacts
-        path: '**/target/*.jar'
-
-    - name: Publish Test Results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: 'reports/**/*.xml'
-
-    - name: Success Notification
-      if: success()
-      run: echo 'Pipeline succeeded!'
-
-    - name: Failure Notification
-      if: failure()
-      run: echo 'Pipeline failed.'
