@@ -8,77 +8,69 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
       NODE_ENV: test  # Optimization: Set environment variable globally for the job
 
     steps:
-      # Optimization: Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Optimization: Print environment variable
-      - name: Print environment variable
-        run: echo "Environment will be : ${{ env.NODE_ENV }}"
+    - name: Print environment variable
+      run: echo "Environment will be : ${{ env.NODE_ENV }}"
 
-      # Optimization: Check Node.js version
-      - name: Check Node.js version
-        run: node -v
+    - name: Check Node.js version
+      run: node -v
 
-      # Optimization: Combine npm prune and install to reduce steps and improve performance
-      - name: Prune and Install npm packages
-        run: |
-          npm prune
-          npm install
+    - name: Install npm packages
+      run: npm ci  # Optimization: Use 'npm ci' for clean install and faster performance
 
-      # Optimization: Run tests
-      - name: Run tests
-        run: npm test
+    - name: Run tests
+      run: npm test
 
-      # Optimization: Build Docker image
-      - name: Build Docker image
-        run: ./dockerBuild.sh
+    - name: Build Docker image
+      run: ./dockerBuild.sh
 
-      # Optimization: Deploy Docker image
-      - name: Deploy Docker image
-        run: |
-          echo 'Push to Repo'
-          ./dockerPushToRepo.sh
-          echo 'ssh to web server and tell it to pull new image'
-          ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
+    - name: Deploy Docker image
+      run: |
+        echo 'Push to Repo'
+        ./dockerPushToRepo.sh
+        echo 'ssh to web server and tell it to pull new image'
+        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
 
-      # Optimization: Cleanup
-      - name: Cleanup
-        run: |
-          echo 'prune and cleanup'
-          npm prune
-          rm -rf node_modules
+    - name: Cleanup
+      run: |
+        echo 'prune and cleanup'
+        npm prune
+        rm -rf node_modules
 
-      # Optimization: Send success email
-      - name: Send success email
-        if: success()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.your-email.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'project build successful'
-          body: 'project build successful'
-          to: 'yyyyy@yyyy.com'
-          from: 'xxxx@yyyyy.com'
-          reply_to: 'xxxx@yyyy.com'
+    - name: Send success email
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "project build successful"
+        body: "project build successful"
+        to: "yyyyy@yyyy.com"
+        from: "xxxx@yyyyy.com"
+        content_type: text/plain
 
-      # Optimization: Send failure email
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.your-email.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'project build failed'
-          body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          to: 'zzzz@yyyyy.com'
-          from: 'xxxx@yyyy.com'
-          reply_to: 'yyyy@yyyy.com'
+  on_failure:
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+    - name: Send failure email
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "project build failed"
+        body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        to: "zzzz@yyyyy.com"
+        from: "xxxx@yyyy.com"
+        content_type: text/plain
