@@ -8,72 +8,94 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     env:
-      NODE_ENV: test  # Optimization: Set environment variable globally for the job
+      BUILD_ENV: production
+      DOCKER_REGISTRY: my-docker-registry.com
+      APP_NAME: my-java-app
 
     steps:
+    # Optimization: Using the latest version of checkout action
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Print environment variable
-      run: echo "Environment will be : ${{ env.NODE_ENV }}"
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v3  # Optimization: Use setup-node action to ensure the correct Node.js version is used
-      with:
-        node-version: '14'  # Specify the Node.js version
-
-    - name: Install npm packages
-      run: npm ci  # Optimization: Use 'npm ci' for faster, clean installation of dependencies
-
-    - name: Run tests
-      run: npm test
-
-    - name: Build Docker image
-      run: ./dockerBuild.sh
-
-    - name: Deploy Docker image
+    # Optimization: Combined initialization steps to reduce the number of shell invocations
+    - name: Initialize and Java Version Check
       run: |
-        echo 'Push to Repo'
-        ./dockerPushToRepo.sh
-        echo 'ssh to web server and tell it to pull new image'
-        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
+        echo "Initializing pipeline for ${APP_NAME} in ${BUILD_ENV} environment"
+        java -version
 
-    - name: Cleanup
+    # Optimization: Combined static analysis steps to reduce the number of shell invocations
+    - name: Static Analysis
       run: |
-        echo 'prune and cleanup'
-        npm prune
-        rm -rf node_modules
+        echo 'Running Code Analysis...'
+        ./gradlew checkstyleMain lint
 
-    - name: Send success email
-      if: success()
-      uses: dawidd6/action-send-mail@v3
+    # Optimization: Added caching for Gradle dependencies to speed up builds
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v3
       with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build successful'
-        body: 'project build successful'
-        to: 'yyyyy@yyyy.com'
-        from: 'xxxx@yyyyy.com'
-        reply_to: 'xxxx@yyyy.com'
+        path: ~/.gradle/caches
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
 
-  failure:
-    runs-on: ubuntu-latest
-    if: failure()
+    - name: Build
+      run: |
+        echo 'Building Application...'
+        ./gradlew build
 
-    steps:
-    - name: Send failure email
-      uses: dawidd6/action-send-mail@v3
+    - name: Unit Tests
+      run: |
+        echo 'Running Unit Tests...'
+        ./gradlew test
+
+    - name: Code Coverage
+      run: |
+        echo 'Generating Code Coverage Report...'
+        ./gradlew jacocoTestReport
+
+    # Optimization: Use a more specific path for the code coverage report
+    - name: Publish Code Coverage Report
+      uses: actions/upload-artifact@v3
       with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build failed'
-        body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        to: 'zzzz@yyyyy.com'
-        from: 'xxxx@yyyy.com'
-        reply_to: 'yyyy@yyyy.com'
+        name: code-coverage-report
+        path: build/reports/jacoco/test/html/index.html
+
+    - name: Docker Build
+      run: |
+        echo 'Building Docker Image...'
+        docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV} .
+
+    - name: Push Docker Image
+      run: |
+        echo 'Pushing Docker Image...'
+        docker push ${DOCKER_REGISTRY}/${APP_NAME}:${BUILD_ENV}
+
+    - name: Deploy to Kubernetes
+      run: |
+        echo 'Deploying Application to Kubernetes...'
+        kubectl apply -f k8s/deployment.yaml
+
+  post:
+    always:
+      steps:
+      # Optimization: Use a more specific path for build artifacts
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: '**/build/libs/*.jar'
+
+    success:
+      steps:
+      - name: Notify Success
+        run: |
+          echo 'Pipeline succeeded!'
+          echo "The pipeline for ${APP_NAME} succeeded. Build available at ${GITHUB_RUN_URL}" | mail -s "Build Success: ${APP_NAME}" team@example.com
+
+    failure:
+      steps:
+      - name: Notify Failure
+        run: |
+          echo 'Pipeline failed.'
+          echo "The pipeline for ${APP_NAME} failed. Check logs at ${GITHUB_RUN_URL}" | mail -s "Build Failed: ${APP_NAME}" team@example.com
