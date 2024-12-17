@@ -19,13 +19,13 @@ jobs:
     - name: Print environment variable
       run: echo "Environment will be : ${{ env.NODE_ENV }}"
 
-    - name: Check Node.js version
-      run: node -v
+    - name: Setup Node.js
+      uses: actions/setup-node@v3  # Optimization: Use setup-node action to ensure the correct Node.js version is used
+      with:
+        node-version: '14'  # Specify the Node.js version
 
-    - name: Prune and install npm packages  # Optimization: Combine npm prune and npm install into a single step
-      run: |
-        npm prune
-        npm install
+    - name: Install npm packages
+      run: npm ci  # Optimization: Use 'npm ci' for faster, clean installation of dependencies
 
     - name: Run tests
       run: npm test
@@ -47,6 +47,7 @@ jobs:
         rm -rf node_modules
 
     - name: Send success email
+      if: success()
       uses: dawidd6/action-send-mail@v3
       with:
         server_address: smtp.your-email.com
@@ -57,9 +58,9 @@ jobs:
         body: 'project build successful'
         to: 'yyyyy@yyyy.com'
         from: 'xxxx@yyyyy.com'
-        content_type: 'text/plain'
+        reply_to: 'xxxx@yyyy.com'
 
-  on_failure:
+  failure:
     runs-on: ubuntu-latest
     if: failure()
 
@@ -75,4 +76,4 @@ jobs:
         body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         to: 'zzzz@yyyyy.com'
         from: 'xxxx@yyyy.com'
-        content_type: 'text/plain'
+        reply_to: 'yyyy@yyyy.com'
