@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
       NODE_ENV: test  # Optimization: Set environment variable globally for the job
 
@@ -21,8 +22,10 @@ jobs:
     - name: Check Node.js version
       run: node -v
 
-    - name: Install npm packages
-      run: npm ci  # Optimization: Use 'npm ci' for faster, clean installation
+    - name: Prune and install npm packages  # Optimization: Combine npm prune and npm install into a single step
+      run: |
+        npm prune
+        npm install
 
     - name: Run tests
       run: npm test
@@ -54,7 +57,7 @@ jobs:
         body: 'project build successful'
         to: 'yyyyy@yyyy.com'
         from: 'xxxx@yyyyy.com'
-        reply_to: 'xxxx@yyyy.com'
+        content_type: 'text/plain'
 
   on_failure:
     runs-on: ubuntu-latest
@@ -69,7 +72,7 @@ jobs:
         username: ${{ secrets.EMAIL_USERNAME }}
         password: ${{ secrets.EMAIL_PASSWORD }}
         subject: 'project build failed'
-        body: "project build error is here: ${{ github.event.workflow_run.html_url }}"
+        body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         to: 'zzzz@yyyyy.com'
         from: 'xxxx@yyyy.com'
-        reply_to: 'yyyy@yyyy.com'
+        content_type: 'text/plain'
