@@ -8,77 +8,71 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
       NODE_ENV: test  # Optimization: Set environment variable globally for the job
 
     steps:
-      # Optimization: Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Optimization: Print environment variable
-      - name: Print environment variable
-        run: echo "Environment will be : $NODE_ENV"
+    - name: Print environment variable
+      run: echo "Environment will be : $NODE_ENV"
 
-      # Optimization: Check Node.js version
-      - name: Check Node.js version
-        run: node -v
+    - name: Setup Node.js
+      uses: actions/setup-node@v3  # Optimization: Use setup-node action to ensure the correct Node.js version is used
+      with:
+        node-version: '14'  # Specify the Node.js version
 
-      # Optimization: Combine npm prune and install into one step
-      - name: Install npm packages
-        run: |
-          npm prune
-          npm install
+    - name: Install npm packages
+      run: npm install
 
-      # Optimization: Run tests
-      - name: Run tests
-        run: npm test
+    - name: Prune npm packages
+      run: npm prune
 
-      # Optimization: Build Docker image
-      - name: Build Docker image
-        run: ./dockerBuild.sh
+    - name: Run tests
+      run: npm test
 
-      # Optimization: Deploy Docker image
-      - name: Deploy Docker image
-        run: |
-          echo 'Push to Repo'
-          ./dockerPushToRepo.sh
-          echo 'ssh to web server and tell it to pull new image'
-          ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
+    - name: Build Docker image
+      run: ./dockerBuild.sh
 
-      # Optimization: Cleanup
-      - name: Cleanup
-        run: |
-          echo 'prune and cleanup'
-          npm prune
-          rm -rf node_modules
+    - name: Deploy Docker image
+      run: |
+        echo 'Push to Repo'
+        ./dockerPushToRepo.sh
+        echo 'ssh to web server and tell it to pull new image'
+        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
 
-      # Optimization: Send success email
-      - name: Send success email
-        if: success()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.your-email.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'project build successful'
-          body: 'project build successful'
-          to: 'yyyyy@yyyy.com'
-          from: 'xxxx@yyyyy.com'
-          reply_to: 'xxxx@yyyy.com'
+    - name: Cleanup
+      run: |
+        echo 'prune and cleanup'
+        npm prune
+        rm -rf node_modules
 
-      # Optimization: Send failure email
-      - name: Send failure email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.your-email.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'project build failed'
-          body: "project build error is here: ${{ github.event.workflow_run.html_url }}"
-          to: 'zzzz@yyyyy.com'
-          from: 'xxxx@yyyy.com'
-          reply_to: 'yyyy@yyyy.com'
+    - name: Send success email
+      if: success()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: 'project build successful'
+        body: 'project build successful'
+        to: 'yyyyy@yyyy.com'
+        from: 'xxxx@yyyyy.com'
+        reply_to: 'xxxx@yyyy.com'
+
+    - name: Send failure email
+      if: failure()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.your-email.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: 'project build failed'
+        body: "project build error is here: ${{ github.event.workflow_run.html_url }}"
+        to: 'zzzz@yyyyy.com'
+        from: 'xxxx@yyyy.com'
+        reply_to: 'yyyy@yyyy.com'
