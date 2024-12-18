@@ -6,74 +6,59 @@ on:
       - main
 
 jobs:
-  build:
+  pipeline:
     runs-on: ubuntu-latest
-
     env:
-      NODE_ENV: test  # Optimization: Set environment variable globally for the job
+      BUILD_ENV: production
 
     steps:
+    # Optimization: Checkout code using the latest stable version of the action
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Print environment variable
-      run: echo "Environment will be : ${{ env.NODE_ENV }}"
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v3  # Optimization: Use setup-node action to ensure the correct Node.js version is used
+    # Optimization: Cache dependencies to speed up build times
+    - name: Cache dependencies
+      uses: actions/cache@v3
       with:
-        node-version: '14'  # Specify the Node.js version
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
 
-    - name: Install npm packages
-      run: npm install
+    # Optimization: Build step
+    - name: Build
+      run: ./build.sh
 
-    - name: Run tests
-      run: npm test
+    # Optimization: Test step
+    - name: Test
+      run: ./test.sh
 
-    - name: Build Docker image
-      run: ./dockerBuild.sh
+    # Optimization: Deploy step
+    - name: Deploy
+      run: ./deploy.sh
 
-    - name: Deploy Docker image
-      run: |
-        echo 'Push to Repo'
-        ./dockerPushToRepo.sh
-        echo 'ssh to web server and tell it to pull new image'
-        ssh deploy@xxxxx.xxxxx.com running/xxxxxxx/dockerRun.sh
-
-    - name: Cleanup
-      run: |
-        echo 'prune and cleanup'
-        npm prune
-        rm -rf node_modules
-
-    - name: Send success email
+    # Optimization: Archive build artifacts only if the build step succeeds
+    - name: Archive Artifacts
       if: success()
-      uses: dawidd6/action-send-mail@v3
+      uses: actions/upload-artifact@v3
       with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build successful'
-        body: 'project build successful'
-        to: 'yyyyy@yyyy.com'
-        from: 'xxxx@yyyyy.com'
-        reply_to: 'xxxx@yyyy.com'
+        name: build-artifacts
+        path: '**/target/*.jar'
 
-  failure:
-    runs-on: ubuntu-latest
-    if: failure()
-
-    steps:
-    - name: Send failure email
-      uses: dawidd6/action-send-mail@v3
+    # Optimization: Publish test results only if the test step succeeds
+    - name: Publish Test Results
+      if: success()
+      uses: actions/upload-artifact@v3
       with:
-        server_address: smtp.your-email.com
-        server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: 'project build failed'
-        body: "project build error is here: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        to: 'zzzz@yyyyy.com'
-        from: 'xxxx@yyyy.com'
-        reply_to: 'yyyy@yyyy.com'
+        name: test-results
+        path: 'reports/**/*.xml'
+
+    # Optimization: Success notification step
+    - name: Success Notification
+      if: success()
+      run: echo 'Pipeline succeeded!'
+
+    # Optimization: Failure notification step
+    - name: Failure Notification
+      if: failure()
+      run: echo 'Pipeline failed.'
