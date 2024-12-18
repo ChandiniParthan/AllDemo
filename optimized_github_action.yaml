@@ -6,43 +6,53 @@ on:
       - main
 
 jobs:
-  pipeline:
+  build:
     runs-on: ubuntu-latest
     env:
-      BUILD_ENV: production
+      MAVEN_OPTS: -Dmaven.repo.local=.m2/repository # Optimization: Use local Maven repository to speed up builds
 
     steps:
-    # Optimization: Using the latest version of checkout action for better performance and features
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        repository: your-username/your-java-project
+        ref: main
 
-    # Optimization: Grouping build and test steps to improve readability and maintainability
-    - name: Build and Test
-      run: |
-        ./build.sh
-        ./test.sh
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'adopt'
+        java-version: '11'
 
-    # Optimization: Adding a condition to deploy only on successful build and test
-    - name: Deploy
-      if: success()
-      run: ./deploy.sh
+    - name: Cache Maven packages
+      uses: actions/cache@v3 # Optimization: Cache Maven dependencies to speed up subsequent builds
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
 
-    # Optimization: Combining artifact upload steps to reduce redundancy
-    - name: Archive Artifacts and Publish Test Results
-      if: always()
+    - name: Build with Maven
+      run: mvn clean install
+
+    - name: Run Tests
+      run: mvn test
+
+    - name: Archive Artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: artifacts
-        path: |
-          '**/target/*.jar'
-          'reports/**/*.xml'
+        name: build-artifacts
+        path: '**/target/*.jar'
 
-    # Optimization: Combining success and failure notifications into a single step for simplicity
-    - name: Notification
-      if: always()
-      run: |
-        if [ "${{ job.status }}" == "success" ]; then
-          echo 'Pipeline succeeded!';
-        else
-          echo 'Pipeline failed.';
-        fi
+  post:
+    always:
+      - name: Clean workspace
+        run: git clean -fdx
+
+    success:
+      - name: Success message
+        run: echo 'Build and Test stages successful.'
+
+    failure:
+      - name: Failure message
+        run: echo 'Build or Test failed.'
