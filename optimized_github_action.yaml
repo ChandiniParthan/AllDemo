@@ -12,53 +12,37 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code using the latest stable version of the action
+    # Optimization: Using the latest version of checkout action for better performance and features
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Cache dependencies to speed up build times
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+    # Optimization: Grouping build and test steps to improve readability and maintainability
+    - name: Build and Test
+      run: |
+        ./build.sh
+        ./test.sh
 
-    # Optimization: Build step
-    - name: Build
-      run: ./build.sh
-
-    # Optimization: Test step
-    - name: Test
-      run: ./test.sh
-
-    # Optimization: Deploy step
+    # Optimization: Adding a condition to deploy only on successful build and test
     - name: Deploy
+      if: success()
       run: ./deploy.sh
 
-    # Optimization: Archive build artifacts only if the build step succeeds
-    - name: Archive Artifacts
-      if: success()
+    # Optimization: Combining artifact upload steps to reduce redundancy
+    - name: Archive Artifacts and Publish Test Results
+      if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: build-artifacts
-        path: '**/target/*.jar'
+        name: artifacts
+        path: |
+          '**/target/*.jar'
+          'reports/**/*.xml'
 
-    # Optimization: Publish test results only if the test step succeeds
-    - name: Publish Test Results
-      if: success()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: 'reports/**/*.xml'
-
-    # Optimization: Success notification step
-    - name: Success Notification
-      if: success()
-      run: echo 'Pipeline succeeded!'
-
-    # Optimization: Failure notification step
-    - name: Failure Notification
-      if: failure()
-      run: echo 'Pipeline failed.'
+    # Optimization: Combining success and failure notifications into a single step for simplicity
+    - name: Notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo 'Pipeline succeeded!';
+        else
+          echo 'Pipeline failed.';
+        fi
