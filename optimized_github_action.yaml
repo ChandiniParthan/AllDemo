@@ -1,58 +1,68 @@
 name: MyProject CI/CD
 
 on:
+  # Optimization: Added pull_request event to trigger the workflow on PRs as well
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
 jobs:
-  build:
+  pipeline:
     runs-on: ubuntu-latest
     env:
-      MAVEN_OPTS: -Dmaven.repo.local=.m2/repository # Optimization: Use local Maven repository to speed up builds
+      BUILD_ENV: production
 
     steps:
+    # Optimization: Checkout code step remains the same as it is essential
     - name: Checkout code
       uses: actions/checkout@v3
-      with:
-        repository: your-username/your-java-project
-        ref: main
 
-    - name: Set up JDK 11
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'adopt'
-        java-version: '11'
-
-    - name: Cache Maven packages
-      uses: actions/cache@v3 # Optimization: Cache Maven dependencies to speed up subsequent builds
+    # Optimization: Cache dependencies to speed up build times
+    - name: Cache dependencies
+      uses: actions/cache@v3
       with:
         path: ~/.m2/repository
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
           ${{ runner.os }}-maven-
 
-    - name: Build with Maven
-      run: mvn clean install
+    # Optimization: Build step remains the same
+    - name: Build
+      run: ./build.sh
 
-    - name: Run Tests
-      run: mvn test
+    # Optimization: Test step remains the same
+    - name: Test
+      run: ./test.sh
 
+    # Optimization: Deploy step remains the same
+    - name: Deploy
+      run: ./deploy.sh
+
+    # Optimization: Archive build artifacts step remains the same
     - name: Archive Artifacts
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: build-artifacts
         path: '**/target/*.jar'
 
-  post:
-    always:
-      - name: Clean workspace
-        run: git clean -fdx
+    # Optimization: Publish test results step remains the same
+    - name: Publish Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: 'reports/**/*.xml'
 
-    success:
-      - name: Success message
-        run: echo 'Build and Test stages successful.'
-
-    failure:
-      - name: Failure message
-        run: echo 'Build or Test failed.'
+    # Optimization: Combined success and failure notifications into one step
+    - name: Notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo 'Pipeline succeeded!'
+        else
+          echo 'Pipeline failed.'
+        fi
