@@ -1,3 +1,4 @@
+```yaml
 name: MyProject CI/CD
 
 on:
@@ -6,42 +7,60 @@ on:
       - main
 
 jobs:
-  pipeline:
+  build:
     runs-on: ubuntu-latest
     env:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code using the latest stable version of the action
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Combine build and test steps to reduce the number of shell invocations
-    - name: Build and Test
-      run: |
-        ./build.sh
-        ./test.sh
+    - name: Set up Node.js
+      # Optimization: Added Node.js setup step to ensure the correct version is used
+      uses: actions/setup-node@v3
+      with:
+        node-version: '14'
 
-    # Optimization: Deploy step remains unchanged as it is a separate concern
+    - name: Build
+      run: ./build.sh
+
+    - name: Test
+      run: ./test.sh
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      BUILD_ENV: production
+
+    steps:
     - name: Deploy
       run: ./deploy.sh
 
-    # Optimization: Archive artifacts and publish test results in a single step to reduce redundancy
-    - name: Archive Artifacts and Publish Test Results
+  post:
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    steps:
+    - name: Archive Artifacts
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
-        name: build-and-test-artifacts
-        path: |
-          '**/target/*.jar'
-          'reports/**/*.xml'
+        name: build-artifacts
+        path: '**/target/*.jar'
 
-    # Optimization: Combine success and failure notifications into a single step to reduce redundancy
-    - name: Notification
+    - name: Publish Test Results
       if: always()
-      run: |
-        if [ "${{ job.status }}" == "success" ]; then
-          echo 'Pipeline succeeded!'
-        else
-          echo 'Pipeline failed.'
-        fi
+      uses: actions/upload-artifact@v2
+      with:
+        name: test-results
+        path: 'reports/**/*.xml'
+
+    - name: Notify Success
+      if: success()
+      run: echo 'Pipeline succeeded!'
+
+    - name: Notify Failure
+      if: failure()
+      run: echo 'Pipeline failed.'
+```
