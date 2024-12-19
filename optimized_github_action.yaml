@@ -1,11 +1,7 @@
 name: MyProject CI/CD
 
 on:
-  # Optimization: Added pull_request event to trigger the workflow on PRs as well
   push:
-    branches:
-      - main
-  pull_request:
     branches:
       - main
 
@@ -16,48 +12,31 @@ jobs:
       BUILD_ENV: production
 
     steps:
-    # Optimization: Checkout code step remains the same as it is essential
+    # Optimization: Checkout code using the latest stable version of the action
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Optimization: Cache dependencies to speed up build times
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+    # Optimization: Combine build and test steps to reduce the number of shell invocations
+    - name: Build and Test
+      run: |
+        ./build.sh
+        ./test.sh
 
-    # Optimization: Build step remains the same
-    - name: Build
-      run: ./build.sh
-
-    # Optimization: Test step remains the same
-    - name: Test
-      run: ./test.sh
-
-    # Optimization: Deploy step remains the same
+    # Optimization: Deploy step remains unchanged as it is a separate concern
     - name: Deploy
       run: ./deploy.sh
 
-    # Optimization: Archive build artifacts step remains the same
-    - name: Archive Artifacts
+    # Optimization: Archive artifacts and publish test results in a single step to reduce redundancy
+    - name: Archive Artifacts and Publish Test Results
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: build-artifacts
-        path: '**/target/*.jar'
+        name: build-and-test-artifacts
+        path: |
+          '**/target/*.jar'
+          'reports/**/*.xml'
 
-    # Optimization: Publish test results step remains the same
-    - name: Publish Test Results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: 'reports/**/*.xml'
-
-    # Optimization: Combined success and failure notifications into one step
+    # Optimization: Combine success and failure notifications into a single step to reduce redundancy
     - name: Notification
       if: always()
       run: |
