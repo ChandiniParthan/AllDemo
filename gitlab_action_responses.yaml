@@ -1,0 +1,36 @@
+stages:
+  - checkout
+  - build
+  - test
+  - deploy
+
+variables:
+  BUILD_ENV: "production"
+
+checkout-job:
+  stage: checkout
+  script:
+    - git checkout $CI_COMMIT_REF_NAME
+
+build-job:
+  stage: build
+  script:
+    - ./build.sh
+  artifacts:
+    paths:
+      - target/
+
+test-job:
+  stage: test
+  script:
+    - ./test.sh
+  artifacts:
+    paths:
+      - artifacts/
+  reports:
+    junit: reports/**/*.xml
+
+deploy-job:
+  stage: deploy
+  script:
+    - ./deploy.sh
