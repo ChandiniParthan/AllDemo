@@ -1,0 +1,56 @@
+stages:
+  - checkout
+  - build
+  - test
+  - deploy
+
+variables:
+  BUILD_ENV: "production"
+
+checkout-job:
+  stage: checkout
+  script:
+    # Optimization: Use shallow clone for faster checkout
+    - git clone --depth 1 $CI_REPOSITORY_URL
+
+build-job:
+  stage: build
+  script:
+    # Optimization: Use caching to speed up build process
+    - |
+      if [ -d cache ]; then
+        cp -r cache/* target/
+      fi
+    - ./build.sh
+  artifacts:
+    paths:
+      - target/
+    # Optimization: Cache build artifacts to speed up subsequent builds
+    cache:
+      paths:
+        - target/
+
+test-job:
+  stage: test
+  script:
+    # Optimization: Use caching to speed up test process
+    - |
+      if [ -d cache ]; then
+        cp -r cache/* artifacts/
+      fi
+    - ./test.sh
+  artifacts:
+    paths:
+      - artifacts/
+    # Optimization: Cache test artifacts to speed up subsequent tests
+    cache:
+      paths:
+        - artifacts/
+  reports:
+    junit: reports/**/*.xml
+
+deploy-job:
+  stage: deploy
+  script:
+    # Optimization: Use environment variables for flexibility
+    - ./deploy.sh $BUILD_ENV
