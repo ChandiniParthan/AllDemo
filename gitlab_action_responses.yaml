@@ -7,6 +7,13 @@ stages:
 variables:
   BUILD_ENV: "production"
 
+# Optimization: Added 'cache' to speed up subsequent runs by caching dependencies
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .m2/repository/
+    - node_modules/
+
 checkout-job:
   stage: checkout
   script:
@@ -22,6 +29,8 @@ build-job:
 
 test-job:
   stage: test
+  dependencies: # Optimization: Specify dependencies to ensure the correct order of job execution
+    - build-job
   script:
     - ./test.sh
   artifacts:
@@ -32,5 +41,7 @@ test-job:
 
 deploy-job:
   stage: deploy
+  dependencies: # Optimization: Specify dependencies to ensure the correct order of job execution
+    - test-job
   script:
     - ./deploy.sh
