@@ -10,7 +10,7 @@ variables:
 checkout-job:
   stage: checkout
   script:
-    - git clone $CI_REPOSITORY_URL .
+    - git checkout $CI_COMMIT_REF_NAME
 
 build-job:
   stage: build
@@ -36,5 +36,4 @@ deploy-job:
     - ./deploy.sh
 
 after_script:
-  - echo "Pipeline succeeded!"
-  - echo "Pipeline failed."
+  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
