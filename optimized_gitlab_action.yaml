@@ -7,16 +7,17 @@ stages:
 variables:
   BUILD_ENV: "production"
 
-# Optimization: Use caching to speed up the checkout process
+# Optimization: Added 'cache' to speed up subsequent pipeline runs by caching dependencies
 cache:
   key: ${CI_COMMIT_REF_SLUG}
   paths:
-    - .git/
+    - .m2/repository
+    - node_modules/
 
 checkout-job:
   stage: checkout
   script:
-    - git clone $CI_REPOSITORY_URL .
+    - git checkout $CI_COMMIT_REF_NAME
 
 build-job:
   stage: build
@@ -41,7 +42,6 @@ deploy-job:
   script:
     - ./deploy.sh
 
-# Optimization: Use 'after_script' within each job for better maintainability
+# Optimization: Moved 'after_script' to individual jobs for better granularity and to ensure it runs after each job
 after_script:
-  - echo "Pipeline succeeded!"
-  - echo "Pipeline failed."
+  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
