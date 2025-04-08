@@ -36,4 +36,4 @@ deploy-job:
     - ./deploy.sh
 
 after_script:
-  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
+  - echo "Pipeline succeeded!" || echo "Pipeline failed."
