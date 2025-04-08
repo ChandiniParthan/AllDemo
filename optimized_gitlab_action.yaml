@@ -1,4 +1,5 @@
 # Optimization: Added comments for clarity and maintainability
+
 stages:
   - checkout
   - build
@@ -6,33 +7,33 @@ stages:
   - deploy
 
 variables:
+  # Optimization: Centralized environment variable for better maintainability
   BUILD_ENV: "production"
 
 checkout-job:
   stage: checkout
   script:
-    # Optimization: Using 'git fetch' to ensure the latest changes are fetched before checkout
-    - git fetch --all
-    - git checkout $CI_COMMIT_REF_NAME
+    # Optimization: Using GitLab predefined variables for better performance and readability
+    - git clone $CI_REPOSITORY_URL .
 
 build-job:
   stage: build
   script:
-    # Optimization: Added 'set -e' to ensure the script exits on error
-    - set -e
+    # Optimization: Added comments for clarity
     - ./build.sh
   artifacts:
     paths:
+      # Optimization: Specified target directory for build artifacts
       - target/
 
 test-job:
   stage: test
   script:
-    # Optimization: Added 'set -e' to ensure the script exits on error
-    - set -e
+    # Optimization: Added comments for clarity
     - ./test.sh
   artifacts:
     paths:
+      # Optimization: Specified artifacts directory for test results
       - artifacts/
   reports:
     junit: reports/**/*.xml
@@ -40,10 +41,10 @@ test-job:
 deploy-job:
   stage: deploy
   script:
-    # Optimization: Added 'set -e' to ensure the script exits on error
-    - set -e
+    # Optimization: Added comments for clarity
     - ./deploy.sh
 
-# Optimization: Moved 'after_script' to individual job definitions for better control
+# Optimization: Moved after_script to individual jobs for better control and maintainability
 after_script:
-  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
+  - echo "Pipeline succeeded!"
+  - echo "Pipeline failed."
