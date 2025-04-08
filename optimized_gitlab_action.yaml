@@ -1,5 +1,3 @@
-# Optimization: Added comments for clarity and maintainability
-
 stages:
   - checkout
   - build
@@ -7,44 +5,61 @@ stages:
   - deploy
 
 variables:
-  # Optimization: Centralized environment variable for better maintainability
   BUILD_ENV: "production"
+
+# Optimization: Added 'cache' to speed up subsequent pipeline runs by caching dependencies
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .m2/repository/
+    - node_modules/
 
 checkout-job:
   stage: checkout
   script:
-    # Optimization: Using GitLab predefined variables for better performance and readability
-    - git clone $CI_REPOSITORY_URL .
+    - git checkout $CI_COMMIT_REF_NAME
 
 build-job:
   stage: build
   script:
-    # Optimization: Added comments for clarity
     - ./build.sh
   artifacts:
     paths:
-      # Optimization: Specified target directory for build artifacts
       - target/
+  # Optimization: Added 'cache' to reuse dependencies in the build stage
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .m2/repository/
+      - node_modules/
 
 test-job:
   stage: test
   script:
-    # Optimization: Added comments for clarity
     - ./test.sh
   artifacts:
     paths:
-      # Optimization: Specified artifacts directory for test results
       - artifacts/
   reports:
     junit: reports/**/*.xml
+  # Optimization: Added 'dependencies' to ensure the test job waits for the build job to complete
+  dependencies:
+    - build-job
+  # Optimization: Added 'cache' to reuse dependencies in the test stage
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .m2/repository/
+      - node_modules/
 
 deploy-job:
   stage: deploy
   script:
-    # Optimization: Added comments for clarity
     - ./deploy.sh
+  # Optimization: Added 'dependencies' to ensure the deploy job waits for the test job to complete
+  dependencies:
+    - test-job
 
-# Optimization: Moved after_script to individual jobs for better control and maintainability
+# Optimization: Moved 'after_script' to each job to ensure it runs after each job
 after_script:
-  - echo "Pipeline succeeded!"
-  - echo "Pipeline failed."
+  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
