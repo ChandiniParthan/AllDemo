@@ -1,4 +1,3 @@
-```yaml
 name: MyProject CI/CD
 
 on:
@@ -9,58 +8,54 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      BUILD_ENV: production
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      # Optimization: Added Node.js setup step to ensure the correct version is used
-      uses: actions/setup-node@v3
+    - name: Set up Maven
+      uses: actions/setup-java@v3
       with:
-        node-version: '14'
+        java-version: '11'
+        distribution: 'adopt'
+        cache: 'maven'
 
-    - name: Build
-      run: ./build.sh
+    # Optimization: Removed redundant step to set MAVEN_HOME, setup-java action already sets up Maven environment
+    - name: Build the application
+      run: echo 'Building the application...' && mvn clean compile
 
-    - name: Test
-      run: ./test.sh
+    - name: Run unit tests
+      run: echo 'Running unit tests...' && mvn test
+
+    - name: Publish test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results
+        path: target/surefire-reports/*.xml
+
+    - name: Package the application
+      run: echo 'Packaging the application...' && mvn package
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    env:
-      BUILD_ENV: production
 
     steps:
-    - name: Deploy
-      run: ./deploy.sh
+    - name: Deploy to Production
+      if: github.ref == 'refs/heads/main'
+      run: echo 'Deploying the application...' && ./deploy.sh
 
-  post:
+  # Optimization: Moved post-job steps to individual job steps for better clarity and control
+  post-build:
     runs-on: ubuntu-latest
-    needs: [build, deploy]
+    needs: build
+
     steps:
-    - name: Archive Artifacts
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: build-artifacts
-        path: '**/target/*.jar'
-
-    - name: Publish Test Results
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: test-results
-        path: 'reports/**/*.xml'
-
-    - name: Notify Success
+    - name: Post Build Success
       if: success()
-      run: echo 'Pipeline succeeded!'
+      run: echo 'Pipeline completed successfully!'
 
-    - name: Notify Failure
+    - name: Post Build Failure
       if: failure()
-      run: echo 'Pipeline failed.'
-```
+      run: echo 'Pipeline failed!'
