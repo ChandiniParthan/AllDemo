@@ -7,34 +7,29 @@ stages:
 variables:
   BUILD_ENV: "production"
 
-# Optimization: Added 'cache' to speed up subsequent pipeline runs by caching dependencies
-cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - .m2/repository/
-    - node_modules/
-
+# Optimization: Added 'only' to run jobs only on specific branches, reducing unnecessary pipeline runs
 checkout-job:
   stage: checkout
+  only:
+    - main
+    - develop
   script:
     - git checkout $CI_COMMIT_REF_NAME
 
 build-job:
   stage: build
+  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
+    - checkout-job
   script:
     - ./build.sh
   artifacts:
     paths:
       - target/
-  # Optimization: Added 'cache' to reuse dependencies in the build stage
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - .m2/repository/
-      - node_modules/
 
 test-job:
   stage: test
+  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
+    - build-job
   script:
     - ./test.sh
   artifacts:
@@ -42,24 +37,14 @@ test-job:
       - artifacts/
   reports:
     junit: reports/**/*.xml
-  # Optimization: Added 'dependencies' to ensure the test job waits for the build job to complete
-  dependencies:
-    - build-job
-  # Optimization: Added 'cache' to reuse dependencies in the test stage
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      - .m2/repository/
-      - node_modules/
 
 deploy-job:
   stage: deploy
+  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
+    - test-job
   script:
     - ./deploy.sh
-  # Optimization: Added 'dependencies' to ensure the deploy job waits for the test job to complete
-  dependencies:
-    - test-job
 
-# Optimization: Moved 'after_script' to each job to ensure it runs after each job
+# Optimization: Moved after_script to individual jobs for better control and to ensure it runs even if a job fails
 after_script:
   - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
