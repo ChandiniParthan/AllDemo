@@ -7,11 +7,12 @@ stages:
 variables:
   BUILD_ENV: "production"
 
-# Optimization: Use caching to speed up the checkout process
+# Optimization: Added 'cache' to speed up subsequent pipeline runs by caching dependencies
 cache:
   key: ${CI_COMMIT_REF_SLUG}
   paths:
-    - .git/
+    - .m2/repository
+    - node_modules/
 
 checkout-job:
   stage: checkout
@@ -41,6 +42,39 @@ deploy-job:
   script:
     - ./deploy.sh
 
-# Optimization: Use 'after_script' to handle both success and failure cases
-after_script:
-  - if [ "$CI_JOB_STATUS" == "success" ]; then echo "Pipeline succeeded!"; else echo "Pipeline failed."; fi
+# Optimization: Moved 'after_script' to individual jobs for better control and to ensure it runs regardless of job success or failure
+checkout-job:
+  stage: checkout
+  script:
+    - git clone $CI_REPOSITORY_URL .
+  after_script:
+    - echo "Checkout stage completed."
+
+build-job:
+  stage: build
+  script:
+    - ./build.sh
+  artifacts:
+    paths:
+      - target/
+  after_script:
+    - echo "Build stage completed."
+
+test-job:
+  stage: test
+  script:
+    - ./test.sh
+  artifacts:
+    paths:
+      - artifacts/
+  reports:
+    junit: reports/**/*.xml
+  after_script:
+    - echo "Test stage completed."
+
+deploy-job:
+  stage: deploy
+  script:
+    - ./deploy.sh
+  after_script:
+    - echo "Deploy stage completed."
