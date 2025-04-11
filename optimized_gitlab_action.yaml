@@ -7,19 +7,19 @@ stages:
 variables:
   BUILD_ENV: "production"
 
-# Optimization: Added 'only' to run jobs only on specific branches, reducing unnecessary pipeline runs
+# Optimization: Use caching to speed up the checkout process
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .git/
+
 checkout-job:
   stage: checkout
-  only:
-    - main
-    - develop
   script:
-    - git checkout $CI_COMMIT_REF_NAME
+    - git clone $CI_REPOSITORY_URL .
 
 build-job:
   stage: build
-  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
-    - checkout-job
   script:
     - ./build.sh
   artifacts:
@@ -28,8 +28,6 @@ build-job:
 
 test-job:
   stage: test
-  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
-    - build-job
   script:
     - ./test.sh
   artifacts:
@@ -40,11 +38,9 @@ test-job:
 
 deploy-job:
   stage: deploy
-  dependencies: # Optimization: Explicitly define dependencies to ensure proper job execution order
-    - test-job
   script:
     - ./deploy.sh
 
-# Optimization: Moved after_script to individual jobs for better control and to ensure it runs even if a job fails
+# Optimization: Use 'after_script' to handle both success and failure cases
 after_script:
-  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
+  - if [ "$CI_JOB_STATUS" == "success" ]; then echo "Pipeline succeeded!"; else echo "Pipeline failed."; fi
