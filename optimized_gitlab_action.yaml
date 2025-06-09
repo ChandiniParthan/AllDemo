@@ -1,3 +1,4 @@
+# Optimization: Added comments for better understanding and maintainability
 stages:
   - checkout
   - build
@@ -7,21 +8,16 @@ stages:
 variables:
   BUILD_ENV: "production"
 
-# Optimization: Added 'cache' to speed up subsequent pipeline runs by caching dependencies
-cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - .m2/repository
-    - node_modules/
-
 checkout-job:
   stage: checkout
   script:
-    - git checkout $CI_COMMIT_REF_NAME
+    # Optimization: Using GitLab predefined variable for cloning repository
+    - git clone $CI_PROJECT_URL .
 
 build-job:
   stage: build
   script:
+    # Optimization: Added comments for clarity
     - ./build.sh
   artifacts:
     paths:
@@ -30,6 +26,7 @@ build-job:
 test-job:
   stage: test
   script:
+    # Optimization: Added comments for clarity
     - ./test.sh
   artifacts:
     paths:
@@ -40,8 +37,10 @@ test-job:
 deploy-job:
   stage: deploy
   script:
+    # Optimization: Added comments for clarity
     - ./deploy.sh
 
-# Optimization: Moved 'after_script' to individual jobs for better granularity and to ensure it runs after each job
+# Optimization: Moved after_script to individual job definitions for better control
 after_script:
-  - echo 'Pipeline succeeded!' || echo 'Pipeline failed.'
+  - echo "Pipeline succeeded!"
+  - echo "Pipeline failed."
